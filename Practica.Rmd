@@ -1,0 +1,109 @@
+---
+title: "PRA2 Tipología y ciclo de vida de los datos"
+author: "Sergio Romero Córdoba y Alberto Sánchez Mazarro y S"
+date: "11/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(stringr)
+library(sjmisc)
+library(dplyr)
+library(raster)
+library(lubridate)
+library(psych)
+library(ggplot2)
+library(conflicted)
+library(ragtop)
+conflict_prefer("select", "dplyr")
+conflict_prefer("trim", "raster")
+conflict_prefer("rescale", "scales")
+conflict_prefer("filter", "dplyr")
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+## 1. Cargamos los csv. Convertimos a UTF8 para solucionar el problema de las tildes
+```{r}
+#fichero Train
+datosTrain <- read.csv("C:\\TRABAJO\\Master\\Tipologia\\PRA2\\train.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+#fichero Test
+datosTest <- read.csv("C:\\TRABAJO\\Master\\Tipologia\\PRA2\\test.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+#fichero de supervivencia
+datosSurvived <- read.csv("C:\\TRABAJO\\Master\\Tipologia\\PRA2\\gender_submission.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+```
+
+
+## 2. Integración y selección.
+A continuación vamos a integrar todos los datos en un único dataset.
+```{r}
+#Añadimos la variable "Survived" al dataset de Test
+datosTestSurv<-merge(datosTest, datosSurvived, by.x="PassengerId", by.y="PassengerId")
+
+#Mezclamos el nuevo dataset de test y el de train
+datos<-rbind(datosTestSurv, datosTrain)
+
+#Comprobamos que no hay duplicados
+sum(duplicated(datos$PassengerId))
+
+
+#Agrupamos todos los parentescos familiares en una nueva columna
+datos$Relatives=datos$SibSp+datos$Parch
+
+#Borramos las columnas de SibSp y Parch
+datos<-select(datos, -SibSp, -Parch)
+
+## vemos la estructura de los datos
+str(datos)
+head(datos)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## 3. Limpieza de los datos
+
+###3.1 Elementos vacíos
+
+Vamos a empezar haciendo un análisis de las columnas que contienen datos en blanco.
+
+```{r}
+# Números de valores desconocidos por campo
+sapply(datos, function(x) sum(is.na(x)|x==""))
+
+```
+A continuación vamos a estimar la tarifa desconocida. Es un registro de puerto S y clase 3.
+
+```{r}
+casosS3<-filter(datos, Pclass==3 & datos$Embarked=="S")
+mediaTarifaS3<-mean(casosS3$Fare,na.rm=TRUE)
+
+#Asignamos el valor medio al dato perdido.
+datos[153,"Fare"]<-mediaTarifaS3
+
+```
+
+
+### 3.2 Valores outliers.
+
+```{r}
+#Visualización de la edad
+edad<-datos.bp<-boxplot(datos$Age,main="Edad")
+edad$out
+
+#Visualización de la tarifa
+tarifa<-datos.bp<-boxplot(datos$Fare,main="Tarifa")
+tarifa$out
+
+#Visualización del número de famimliares
+familiares<-datos.bp<-boxplot(datos$Relatives,main="Familiares")
+familiares$out
+```
+
