@@ -13,14 +13,14 @@ knitr::opts_chunk$set(echo = TRUE)
 library(stringr)
 library(sjmisc)
 library(dplyr)
-library(raster)
+#library(raster)
 library(lubridate)
 library(psych)
 library(ggplot2)
 library(conflicted)
 library(ragtop)
 conflict_prefer("select", "dplyr")
-conflict_prefer("trim", "raster")
+#conflict_prefer("trim", "raster")
 conflict_prefer("rescale", "scales")
 conflict_prefer("filter", "dplyr")
 ```
@@ -64,6 +64,7 @@ datos<-select(datos, -SibSp, -Parch)
 ## vemos la estructura de los datos
 str(datos)
 head(datos)
+summary(datos)
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
@@ -107,3 +108,46 @@ familiares<-datos.bp<-boxplot(datos$Relatives,main="Familiares")
 familiares$out
 ```
 
+# 4. Análisis de los datos
+
+Lo primero que vamos a realizar es una discretización de los datos relativos al sexo, el puerto de embarque, la clase del billete y la supervivencia, que aunque vienen representados en enteros o cadenas, en realidad pertenecen a grupos que deben ser factorizados.
+
+```{r}
+# Discretizamos las variables con pocas clases
+cols<-c("Survived","Pclass","Sex","Embarked")
+for (i in cols){
+  datos[,i] <- as.factor(datos[,i])
+}
+
+# Después de los cambios, analizamos la nueva estructura del conjunto de datos
+str(datos)
+```
+
+Un primer análisis que puede resultar interesante es ver la relación entre el sexo del pasajero y su capacidad de supervivencia. 
+
+```{r}
+ggplot(data=datos,aes(x=Sex,fill=Survived))+geom_bar()
+```
+De esta primera consulta obtenemos visualmente una información bastante relevante: mientras que la gran mayoría de hombres falleció, la mayoría de las mujeres sobrevivieron.
+
+Veamos qué sucede comparando con la clase en la que viajaban.
+
+```{r}
+ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar()
+```
+Vemos que el número de supervivientes es relativamente parecido en todas las categorías. Pero veamos qué sucede desde el punto de vista porcentual:
+
+
+```{r}
+ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar(position="fill")+ylab("Frecuencia")
+```
+Aquí comprobamos que los pasajeros de primera clase tenían más probabilidad de sobrevivir que los de segunda, y éstos más que los de tercera.
+
+
+Por último, vamos a ver la relación entre las tres variables: Por cada clase (1, 2, 3) vemos el porcentaje de supervivientes.
+
+```{r}
+ggplot(data = datos,aes(x=Sex,fill=Survived))+geom_bar(position="fill")+facet_wrap(~Pclass)
+```
+
+Como dato llamativo, casi todas las mujeres de primera clase sobrevivieron, mientras que no lo hizo casi ningún hombre de segunda o tercera.
