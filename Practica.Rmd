@@ -19,6 +19,7 @@ library(psych)
 library(ggplot2)
 library(conflicted)
 library(ragtop)
+library(car)
 conflict_prefer("select", "dplyr")
 #conflict_prefer("trim", "raster")
 conflict_prefer("rescale", "scales")
@@ -151,3 +152,47 @@ ggplot(data = datos,aes(x=Sex,fill=Survived))+geom_bar(position="fill")+facet_wr
 ```
 
 Como dato llamativo, casi todas las mujeres de primera clase sobrevivieron, mientras que no lo hizo casi ningún hombre de segunda o tercera.
+
+## 4.2. Comprobación de normalidad y homogeneidad de la varianza
+
+Este concepto solo tiene sentido sobre variables numéricas; es decir, lo vamos a analizar sobre la edad y la tarifa.
+
+```{r}
+shapiro.test(datos$Age)
+shapiro.test(datos$Fare)
+```
+
+En ambos casos obtenemos unos p-value muy pequeños que rechazan la hipótesis nula de normalidad.
+
+Veamos qué sucede con la homocedasticidad (igualdad de varianza entre dos grupos).
+Vamos a comprobarla en la edad y la tarifa para los grupos que sobrevivieron y lops que no
+
+```{r}
+leveneTest(Age ~ Survived, data = datos)
+leveneTest(Fare ~ Survived, data = datos)
+```
+
+
+Vemos que, tomando alfa=0.05 como valor aceptado, la varianza en los grupos de supervivencia presenta homocedasticidad para el atributo edad pero no para la tarifa.
+
+
+## 4.3 Aplicación de técnicas estadísticas.
+
+Vamos a utilizar el test de chi cuadrado para ver la relación entre el sexo y la supervivencia.
+
+```{r}
+numHombresSuperV=sum(datos$Sex=='male' & datos$Survived==1)
+numHombresNoSuperv=sum(datos$Sex=='male' & datos$Survived==0)
+numMujeresSuperv=sum(datos$Sex=='female' & datos$Survived==1)
+numMujeresNoSuperv=sum(datos$Sex=='female' & datos$Survived==0)
+
+hombres=c(numHombresSuperV, numHombresNoSuperv)
+mujeres=c(numMujeresSuperv, numMujeresNoSuperv)
+
+sexoSuperv=as.data.frame(rbind(hombres, mujeres))
+names(sexoSuperv) = c('Sobrevive', 'NoSobrevive')
+
+sexoSuperv
+chisq.test(sexoSuperv)
+```
+Obtenemos un p-value bajísimo, que indica diferencias significativas en los resultados de ambos grupos.
