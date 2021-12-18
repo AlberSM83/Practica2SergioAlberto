@@ -196,3 +196,19 @@ sexoSuperv
 chisq.test(sexoSuperv)
 ```
 Obtenemos un p-value bajísimo, que indica diferencias significativas en los resultados de ambos grupos.
+
+
+
+
+A continuación vamos a hacer una nueva prueba no paramétrica, aplicando el test Kruskal-Wallis para ver si la tarifa y la edad influyen en la supervivencia.
+Primero realizamos el test Fligner y vemos no homogeneidad de varianzas.
+```{r}
+fligner.test(Fare ~ Survived, data = datos)
+kruskal.test(Fare ~ Survived, data = datos)
+
+fligner.test(Age ~ Survived, data = datos)
+kruskal.test(Age ~ Survived, data = datos)
+```
+Al realizar el Kruskal-Wallis vemos un p-value muy bajo, inferior al nivel de significancia, que indica que la tarifa influye en la posibilidad de supervivencia.
+
+Sin embargo, para la edad obtenemos un valor superior que sugiere que no es un elemento demasiado importante para la supervivencia.
