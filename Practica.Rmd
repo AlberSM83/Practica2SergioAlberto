@@ -212,3 +212,12 @@ kruskal.test(Age ~ Survived, data = datos)
 Al realizar el Kruskal-Wallis vemos un p-value muy bajo, inferior al nivel de significancia, que indica que la tarifa influye en la posibilidad de supervivencia.
 
 Sin embargo, para la edad obtenemos un valor superior que sugiere que no es un elemento demasiado importante para la supervivencia.
+
+
+Por último vamos a intentar ver si podemos obtener regresión lineal entre el precio y la edad. De ser así, lo que estaríamos indicando es que cuanto mayores son las personas, tarifas más altas pagan, lo cual no tiene por qué ser así.
+
+```{r}
+m1 = lm(Age~Fare,data=datos)
+summary(m1)
+```
+Obtenemos un R-Squared realmente bajo, que nos indica que en este caso no podemos obtener una relación sólida entre la edad del pasajero y la tarifa que paga, lo cual tiene bastante sentido.
