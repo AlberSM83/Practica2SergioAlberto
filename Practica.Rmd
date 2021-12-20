@@ -48,20 +48,14 @@ A continuación vamos a integrar todos los datos en un único dataset.
 ```{r}
 #Añadimos la variable "Survived" al dataset de Test
 datosTestSurv<-merge(datosTest, datosSurvived, by.x="PassengerId", by.y="PassengerId")
-
 #Mezclamos el nuevo dataset de test y el de train
 datos<-rbind(datosTestSurv, datosTrain)
-
 #Comprobamos que no hay duplicados
 sum(duplicated(datos$PassengerId))
-
-
 #Agrupamos todos los parentescos familiares en una nueva columna
 datos$Relatives=datos$SibSp+datos$Parch
-
 #Borramos las columnas de SibSp y Parch
 datos<-select(datos, -SibSp, -Parch)
-
 ## vemos la estructura de los datos
 str(datos)
 head(datos)
@@ -79,17 +73,14 @@ Vamos a empezar haciendo un análisis de las columnas que contienen datos en bla
 ```{r}
 # Números de valores desconocidos por campo
 sapply(datos, function(x) sum(is.na(x)|x==""))
-
 ```
 A continuación vamos a estimar la tarifa desconocida. Es un registro de puerto S y clase 3.
 
 ```{r}
 casosS3<-filter(datos, Pclass==3 & datos$Embarked=="S")
 mediaTarifaS3<-mean(casosS3$Fare,na.rm=TRUE)
-
 #Asignamos el valor medio al dato perdido.
 datos[153,"Fare"]<-mediaTarifaS3
-
 ```
 
 Para la edad, vamos a completarla calculando la media de pasageros "similares". Para ello, vamos a buscar pasageros que estén en la misma clase y con el mismo número de familiares a bordo.
@@ -107,11 +98,9 @@ datos2<-datos %>%
 #Visualización de la edad
 edad<-datos.bp<-boxplot(datos$Age,main="Edad")
 edad$out
-
 #Visualización de la tarifa
 tarifa<-datos.bp<-boxplot(datos$Fare,main="Tarifa")
 tarifa$out
-
 #Visualización del número de famimliares
 familiares<-datos.bp<-boxplot(datos$Relatives,main="Familiares")
 familiares$out
@@ -127,7 +116,6 @@ cols<-c("Survived","Pclass","Sex","Embarked")
 for (i in cols){
   datos[,i] <- as.factor(datos[,i])
 }
-
 # Después de los cambios, analizamos la nueva estructura del conjunto de datos
 str(datos)
 ```
@@ -193,13 +181,10 @@ numHombresSuperV=sum(datos$Sex=='male' & datos$Survived==1)
 numHombresNoSuperv=sum(datos$Sex=='male' & datos$Survived==0)
 numMujeresSuperv=sum(datos$Sex=='female' & datos$Survived==1)
 numMujeresNoSuperv=sum(datos$Sex=='female' & datos$Survived==0)
-
 hombres=c(numHombresSuperV, numHombresNoSuperv)
 mujeres=c(numMujeresSuperv, numMujeresNoSuperv)
-
 sexoSuperv=as.data.frame(rbind(hombres, mujeres))
 names(sexoSuperv) = c('Sobrevive', 'NoSobrevive')
-
 sexoSuperv
 chisq.test(sexoSuperv)
 ```
@@ -213,7 +198,6 @@ Primero realizamos el test Fligner y vemos no homogeneidad de varianzas.
 ```{r}
 fligner.test(Fare ~ Survived, data = datos)
 kruskal.test(Fare ~ Survived, data = datos)
-
 fligner.test(Age ~ Survived, data = datos)
 kruskal.test(Age ~ Survived, data = datos)
 ```
@@ -222,10 +206,40 @@ Al realizar el Kruskal-Wallis vemos un p-value muy bajo, inferior al nivel de si
 Sin embargo, para la edad obtenemos un valor superior que sugiere que no es un elemento demasiado importante para la supervivencia.
 
 
-Por último vamos a intentar ver si podemos obtener regresión lineal entre el precio y la edad. De ser así, lo que estaríamos indicando es que cuanto mayores son las personas, tarifas más altas pagan, lo cual no tiene por qué ser así.
+A fin de utilizar la regresión logística, vamos a intentar ver si podemos obtener regresión lineal entre el precio y otros atributos, pese a que ya hemos comentado que los principales estudios sobre este dataset tienen que ver con el factor "Survived".
+
+VAmos a comenzar el estudio con la edad, que es también una variable cuantiativa.. De ser así, lo que estaríamos indicando es que cuanto mayores son las personas, tarifas más altas pagan, lo cual no tiene por qué ser así.
 
 ```{r}
 m1 = lm(Age~Fare,data=datos)
 summary(m1)
 ```
 Obtenemos un R-Squared realmente bajo, que nos indica que en este caso no podemos obtener una relación sólida entre la edad del pasajero y la tarifa que paga, lo cual tiene bastante sentido.
+
+
+Vamos a utilizar el modelo de regresión lineal para predecir la tarifa en base a otras variables cualitativas.
+
+Para ello, vamos a aplicar regresión sobre diferentes variables y vamos a tratar de encontrar las que mejor se ajustan.
+
+```{r}
+mClass = lm(Fare~Pclass,data=datos)
+summary(mClass)
+
+mEmbarked = lm(Fare~Embarked,data=datos)
+summary(mEmbarked)
+
+```
+
+De estos resultados vemos que la clase es el factor que más influencia tiene con la tarifa, pese a que un valor de R-Squared de 0.36 tampoco puede considerarse demasiado bueno.
+
+
+Por último, vamos a aplicar regresión logística sobre la variable objetivo "Survived" para intentar encontrar mediante esta técnica qué parámetros influyen más en la supervivencia.
+
+```{r}
+modeloLogistico=glm(formula = Survived ~ Pclass+ Sex + Age+ Fare + Embarked, data = datos, family=binomial(link=logit))
+summary(modeloLogistico)
+```
+
+De los datos anteriores se ve claramente que el factor más importante es la clase (el modelo toma como referencia la clase 1 y vemos como para pClass1 y pClass2 obtenemos una estimación negativa, que nos indica que es menos probable la supervivencia). Esto puede tener cierto sentido (a mejores condiciones en la clase del billete mayores probabilidades de supervivencia)
+
+Del mismo modo, un valor negativo (y significativo) de la variable "Sexmale" nos indica que los hombres tienen menos probabilidad de supervivencia que las mujeres. 
