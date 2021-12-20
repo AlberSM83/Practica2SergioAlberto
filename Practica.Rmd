@@ -35,11 +35,11 @@ When you click the **Knit** button a document will be generated that includes bo
 ## 1. Cargamos los csv. Convertimos a UTF8 para solucionar el problema de las tildes
 ```{r}
 #fichero Train
-datosTrain <- read.csv("C:\\TRABAJO\\Master\\Tipologia\\PRA2\\train.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+datosTrain <- read.csv("train.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
 #fichero Test
-datosTest <- read.csv("C:\\TRABAJO\\Master\\Tipologia\\PRA2\\test.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+datosTest <- read.csv("test.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
 #fichero de supervivencia
-datosSurvived <- read.csv("C:\\TRABAJO\\Master\\Tipologia\\PRA2\\gender_submission.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+datosSurvived <- read.csv("gender_submission.csv", stringsAsFactors = FALSE, fileEncoding = "UTF-8")
 ```
 
 
@@ -90,6 +90,14 @@ mediaTarifaS3<-mean(casosS3$Fare,na.rm=TRUE)
 #Asignamos el valor medio al dato perdido.
 datos[153,"Fare"]<-mediaTarifaS3
 
+```
+
+Para la edad, vamos a completarla calculando la media de pasageros "similares". Para ello, vamos a buscar pasageros que estén en la misma clase y con el mismo número de familiares a bordo.
+
+```{r}
+impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
+datos2<-datos %>%
+    group_by(Pclass)
 ```
 
 
