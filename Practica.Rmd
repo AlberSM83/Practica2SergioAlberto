@@ -86,9 +86,14 @@ datos[153,"Fare"]<-mediaTarifaS3
 Para la edad, vamos a completarla calculando la media de pasageros "similares". Para ello, vamos a buscar pasageros que estén en la misma clase y con el mismo número de familiares a bordo.
 
 ```{r}
-impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
-datos2<-datos %>%
-    group_by(Pclass)
+
+# Agrupamos por clase y familiares y asignamos la media a los valores
+# desconocidos
+datos %>%
+  group_by(Pclass, Relatives) %>%
+  mutate(Age = ifelse(is.na(Age),
+                      median(Age, na.rm = TRUE),
+                      Age))
 ```
 
 
@@ -120,35 +125,6 @@ for (i in cols){
 str(datos)
 ```
 
-Un primer análisis que puede resultar interesante es ver la relación entre el sexo del pasajero y su capacidad de supervivencia. 
-
-```{r}
-ggplot(data=datos,aes(x=Sex,fill=Survived))+geom_bar()
-```
-De esta primera consulta obtenemos visualmente una información bastante relevante: mientras que la gran mayoría de hombres falleció, la mayoría de las mujeres sobrevivieron.
-
-Veamos qué sucede comparando con la clase en la que viajaban.
-
-```{r}
-ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar()
-```
-Vemos que el número de supervivientes es relativamente parecido en todas las categorías. Pero veamos qué sucede desde el punto de vista porcentual:
-
-
-```{r}
-ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar(position="fill")+ylab("Frecuencia")
-```
-Aquí comprobamos que los pasajeros de primera clase tenían más probabilidad de sobrevivir que los de segunda, y éstos más que los de tercera.
-
-
-Por último, vamos a ver la relación entre las tres variables: Por cada clase (1, 2, 3) vemos el porcentaje de supervivientes.
-
-```{r}
-ggplot(data = datos,aes(x=Sex,fill=Survived))+geom_bar(position="fill")+facet_wrap(~Pclass)
-```
-
-Como dato llamativo, casi todas las mujeres de primera clase sobrevivieron, mientras que no lo hizo casi ningún hombre de segunda o tercera.
-
 ## 4.2. Comprobación de normalidad y homogeneidad de la varianza
 
 Este concepto solo tiene sentido sobre variables numéricas; es decir, lo vamos a analizar sobre la edad y la tarifa.
@@ -177,6 +153,7 @@ Vemos que, tomando alfa=0.05 como valor aceptado, la varianza en los grupos de s
 Vamos a utilizar el test de chi cuadrado para ver la relación entre el sexo y la supervivencia.
 
 ```{r}
+
 numHombresSuperV=sum(datos$Sex=='male' & datos$Survived==1)
 numHombresNoSuperv=sum(datos$Sex=='male' & datos$Survived==0)
 numMujeresSuperv=sum(datos$Sex=='female' & datos$Survived==1)
@@ -186,7 +163,9 @@ mujeres=c(numMujeresSuperv, numMujeresNoSuperv)
 sexoSuperv=as.data.frame(rbind(hombres, mujeres))
 names(sexoSuperv) = c('Sobrevive', 'NoSobrevive')
 sexoSuperv
+
 chisq.test(sexoSuperv)
+
 ```
 Obtenemos un p-value bajísimo, que indica diferencias significativas en los resultados de ambos grupos.
 
@@ -196,10 +175,12 @@ Obtenemos un p-value bajísimo, que indica diferencias significativas en los res
 A continuación vamos a hacer una nueva prueba no paramétrica, aplicando el test Kruskal-Wallis para ver si la tarifa y la edad influyen en la supervivencia.
 Primero realizamos el test Fligner y vemos no homogeneidad de varianzas.
 ```{r}
+
 fligner.test(Fare ~ Survived, data = datos)
 kruskal.test(Fare ~ Survived, data = datos)
 fligner.test(Age ~ Survived, data = datos)
 kruskal.test(Age ~ Survived, data = datos)
+
 ```
 Al realizar el Kruskal-Wallis vemos un p-value muy bajo, inferior al nivel de significancia, que indica que la tarifa influye en la posibilidad de supervivencia.
 
@@ -243,3 +224,42 @@ summary(modeloLogistico)
 De los datos anteriores se ve claramente que el factor más importante es la clase (el modelo toma como referencia la clase 1 y vemos como para pClass1 y pClass2 obtenemos una estimación negativa, que nos indica que es menos probable la supervivencia). Esto puede tener cierto sentido (a mejores condiciones en la clase del billete mayores probabilidades de supervivencia)
 
 Del mismo modo, un valor negativo (y significativo) de la variable "Sexmale" nos indica que los hombres tienen menos probabilidad de supervivencia que las mujeres. 
+
+# 5. Representación de los resultados a partir de tablas y gráficas
+
+Un primer análisis que puede resultar interesante es ver la relación entre el sexo del pasajero y su capacidad de supervivencia. 
+
+```{r}
+
+ggplot(data=datos,aes(x=Sex,fill=Survived))+geom_bar()
+
+```
+De esta primera consulta obtenemos visualmente una información bastante relevante: mientras que la gran mayoría de hombres falleció, la mayoría de las mujeres sobrevivieron.
+
+Veamos qué sucede comparando con la clase en la que viajaban.
+
+```{r}
+
+ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar()
+
+```
+Vemos que el número de supervivientes es relativamente parecido en todas las categorías. Pero veamos qué sucede desde el punto de vista porcentual:
+
+
+```{r}
+
+ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar(position="fill")+ylab("Frecuencia")
+
+```
+Aquí comprobamos que los pasajeros de primera clase tenían más probabilidad de sobrevivir que los de segunda, y éstos más que los de tercera.
+
+
+Por último, vamos a ver la relación entre las tres variables: Por cada clase (1, 2, 3) vemos el porcentaje de supervivientes.
+
+```{r}
+
+ggplot(data = datos,aes(x=Sex,fill=Survived))+geom_bar(position="fill")+facet_wrap(~Pclass)
+
+```
+
+Como dato llamativo, casi todas las mujeres de primera clase sobrevivieron, mientras que no lo hizo casi ningún hombre de segunda o tercera.
