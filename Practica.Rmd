@@ -20,6 +20,7 @@ library(ggplot2)
 library(conflicted)
 library(ragtop)
 library(car)
+library(caret)
 conflict_prefer("select", "dplyr")
 #conflict_prefer("trim", "raster")
 conflict_prefer("rescale", "scales")
@@ -86,14 +87,9 @@ datos[153,"Fare"]<-mediaTarifaS3
 Para la edad, vamos a completarla calculando la media de pasageros "similares". Para ello, vamos a buscar pasageros que estén en la misma clase y con el mismo número de familiares a bordo.
 
 ```{r}
-
-# Agrupamos por clase y familiares y asignamos la media a los valores
-# desconocidos
-datos %>%
-  group_by(Pclass, Relatives) %>%
-  mutate(Age = ifelse(is.na(Age),
-                      median(Age, na.rm = TRUE),
-                      Age))
+impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
+datos2<-datos %>%
+    group_by(Pclass)
 ```
 
 
@@ -125,6 +121,35 @@ for (i in cols){
 str(datos)
 ```
 
+Un primer análisis que puede resultar interesante es ver la relación entre el sexo del pasajero y su capacidad de supervivencia. 
+
+```{r}
+ggplot(data=datos,aes(x=Sex,fill=Survived))+geom_bar()
+```
+De esta primera consulta obtenemos visualmente una información bastante relevante: mientras que la gran mayoría de hombres falleció, la mayoría de las mujeres sobrevivieron.
+
+Veamos qué sucede comparando con la clase en la que viajaban.
+
+```{r}
+ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar()
+```
+Vemos que el número de supervivientes es relativamente parecido en todas las categorías. Pero veamos qué sucede desde el punto de vista porcentual:
+
+
+```{r}
+ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar(position="fill")+ylab("Frecuencia")
+```
+Aquí comprobamos que los pasajeros de primera clase tenían más probabilidad de sobrevivir que los de segunda, y éstos más que los de tercera.
+
+
+Por último, vamos a ver la relación entre las tres variables: Por cada clase (1, 2, 3) vemos el porcentaje de supervivientes.
+
+```{r}
+ggplot(data = datos,aes(x=Sex,fill=Survived))+geom_bar(position="fill")+facet_wrap(~Pclass)
+```
+
+Como dato llamativo, casi todas las mujeres de primera clase sobrevivieron, mientras que no lo hizo casi ningún hombre de segunda o tercera.
+
 ## 4.2. Comprobación de normalidad y homogeneidad de la varianza
 
 Este concepto solo tiene sentido sobre variables numéricas; es decir, lo vamos a analizar sobre la edad y la tarifa.
@@ -137,11 +162,11 @@ shapiro.test(datos$Fare)
 En ambos casos obtenemos unos p-value muy pequeños que rechazan la hipótesis nula de normalidad.
 
 Veamos qué sucede con la homocedasticidad (igualdad de varianza entre dos grupos).
-Vamos a comprobarla en la edad y la tarifa para los grupos que sobrevivieron y lops que no
+Vamos a comprobarla en la edad y la tarifa para los grupos que sobrevivieron y los que no
 
 ```{r}
-leveneTest(Age ~ Survived, data = datos)
-leveneTest(Fare ~ Survived, data = datos)
+fligner.test(Age ~ Survived, data = datos)
+fligner.test(Fare ~ Survived, data = datos)
 ```
 
 
@@ -153,7 +178,6 @@ Vemos que, tomando alfa=0.05 como valor aceptado, la varianza en los grupos de s
 Vamos a utilizar el test de chi cuadrado para ver la relación entre el sexo y la supervivencia.
 
 ```{r}
-
 numHombresSuperV=sum(datos$Sex=='male' & datos$Survived==1)
 numHombresNoSuperv=sum(datos$Sex=='male' & datos$Survived==0)
 numMujeresSuperv=sum(datos$Sex=='female' & datos$Survived==1)
@@ -163,9 +187,7 @@ mujeres=c(numMujeresSuperv, numMujeresNoSuperv)
 sexoSuperv=as.data.frame(rbind(hombres, mujeres))
 names(sexoSuperv) = c('Sobrevive', 'NoSobrevive')
 sexoSuperv
-
 chisq.test(sexoSuperv)
-
 ```
 Obtenemos un p-value bajísimo, que indica diferencias significativas en los resultados de ambos grupos.
 
@@ -176,11 +198,8 @@ A continuación vamos a hacer una nueva prueba no paramétrica, aplicando el tes
 Primero realizamos el test Fligner y vemos no homogeneidad de varianzas.
 ```{r}
 
-fligner.test(Fare ~ Survived, data = datos)
 kruskal.test(Fare ~ Survived, data = datos)
-fligner.test(Age ~ Survived, data = datos)
 kruskal.test(Age ~ Survived, data = datos)
-
 ```
 Al realizar el Kruskal-Wallis vemos un p-value muy bajo, inferior al nivel de significancia, que indica que la tarifa influye en la posibilidad de supervivencia.
 
@@ -225,41 +244,41 @@ De los datos anteriores se ve claramente que el factor más importante es la cla
 
 Del mismo modo, un valor negativo (y significativo) de la variable "Sexmale" nos indica que los hombres tienen menos probabilidad de supervivencia que las mujeres. 
 
-# 5. Representación de los resultados a partir de tablas y gráficas
 
-Un primer análisis que puede resultar interesante es ver la relación entre el sexo del pasajero y su capacidad de supervivencia. 
+
+Por último, vamos a realizar un análisis de validación cruzada con los datos que tenemos utilizando un modelo de regresión logóistica con la clase y el sexo.
+Para ello usamos el conjunto de entrenamiento (datosTrain) haciendo 10 folds y aplicando el método de regresión logística que hemos aplicado anteiormente.
+
+```{r}
+folds <- createFolds(datosTrain$Survived, k = 10)
+
+cvRegresionLogistica <- lapply(folds, function(x){
+  
+training_fold <- datosTrain[-x, ]
+test_fold <- datosTrain[x, ]  
+
+clasifLogistico=glm(formula = Survived ~ Sex + Pclass ,  data = training_fold, family=binomial(link=logit))
+y_pred <- predict(clasifLogistico, type = 'response', newdata = test_fold)
+
+cm <- table(test_fold$Survived, y_pred)
+precision <- (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] +cm[1,2] + cm[2,1])
+return(precision)
+})
+precisionRegresionLogistica <- mean(as.numeric(cvRegresionLogistica))
+precisionRegresionLogistica
+
+```
+Vemos que obtenemos una precisión cercana al 70%.
+
+Si ahora validamos contra los datos de test:
 
 ```{r}
 
-ggplot(data=datos,aes(x=Sex,fill=Survived))+geom_bar()
+clasifLogisticoTest=glm(formula = Survived ~ Pclass+ Sex,  data = datosTrain, family=binomial(link=logit))
+y_pred <- predict(clasifLogisticoTest, type = 'response', newdata = datosTestSurv)
 
+cm <- table(datosTestSurv$Survived, y_pred)
+precisionFinal <- (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] +cm[1,2] + cm[2,1])
+precisionFinal
 ```
-De esta primera consulta obtenemos visualmente una información bastante relevante: mientras que la gran mayoría de hombres falleció, la mayoría de las mujeres sobrevivieron.
-
-Veamos qué sucede comparando con la clase en la que viajaban.
-
-```{r}
-
-ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar()
-
-```
-Vemos que el número de supervivientes es relativamente parecido en todas las categorías. Pero veamos qué sucede desde el punto de vista porcentual:
-
-
-```{r}
-
-ggplot(data = datos,aes(x=Pclass,fill=Survived))+geom_bar(position="fill")+ylab("Frecuencia")
-
-```
-Aquí comprobamos que los pasajeros de primera clase tenían más probabilidad de sobrevivir que los de segunda, y éstos más que los de tercera.
-
-
-Por último, vamos a ver la relación entre las tres variables: Por cada clase (1, 2, 3) vemos el porcentaje de supervivientes.
-
-```{r}
-
-ggplot(data = datos,aes(x=Sex,fill=Survived))+geom_bar(position="fill")+facet_wrap(~Pclass)
-
-```
-
-Como dato llamativo, casi todas las mujeres de primera clase sobrevivieron, mientras que no lo hizo casi ningún hombre de segunda o tercera.
+Obtenemos un 70% de precisión en nuestro modelo al compararlo con los datos de test.
